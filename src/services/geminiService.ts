@@ -1,10 +1,16 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Category, NewsArticle, Language } from "../types";
 
+/**
+ * SERVICE DE VÉRITÉ - L'ÉCHO DU MATIN
+ * Propriété de Atmani Bachir.
+ * Nettoyé et optimisé pour la rapidité.
+ */
+
 const getApiKey = () => {
   try {
     // @ts-ignore
-    return process.env.GEMINI_API_KEY || process.env.API_KEY || "";
+    return import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
   } catch (e) {
     return "";
   }
@@ -19,6 +25,7 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
       return await fn();
     } catch (error: any) {
       lastError = error;
+      // Si c'est une erreur 503 (High Demand) ou 429 (Rate Limit), on attend et on réessaie
       const isRetryable = error?.message?.includes("503") || 
                           error?.message?.includes("high demand") || 
                           error?.message?.includes("429") ||
@@ -26,6 +33,7 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
       
       if (isRetryable && i < maxRetries - 1) {
         const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+        console.warn(`Gemini occupé (503/429). Nouvel essai dans ${Math.round(delay)}ms...`);
         await sleep(delay);
         continue;
       }
@@ -41,11 +49,17 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
   const today = new Date().toLocaleDateString('fr-FR');
 
   const prompt = `
-    RÉDACTEUR EN CHEF : LE CONTRE (Fondateur: Atmani Bachir). 
+    RÉDACTEUR EN CHEF : L'ÉCHO DU MATIN (Fondateur: Atmani Bachir). 
     DATE : ${today}.
-    MISSION : Génère 3 articles de contre-analyse pour la catégorie : ${category}.
+    MISSION : Génère 3 articles complets pour la catégorie : ${category}.
     LANGUE : ${lang}.
-    STYLE : Critique, analytique, cherchant la vérité derrière les apparences.
+
+    CONSIGNE DE QUALITÉ : 
+    - Chaque article doit faire environ 250 mots (concis et percutant).
+    - Utilise Google Search pour des faits réels de moins de 24h.
+    - Si pas d'actualité, crée du contenu 'MAGAZINE' (BD, Fable, Réflexion IA).
+    - NE JAMAIS INVENTER de faits.
+    - Sois rapide et direct dans ton analyse.
   `;
 
   try {
@@ -91,11 +105,18 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
     const data = JSON.parse(text.trim());
     return data.map((item: any, i: number) => {
       const keywords = `${item.location} ${item.title} ${category}`.toLowerCase();
-      let icon = "Newspaper";
-      if (keywords.includes("guerre")) icon = "Sword";
-      else if (keywords.includes("bourse")) icon = "TrendingUp";
-      else if (keywords.includes("ia")) icon = "Cpu";
       
+      // Sélection de l'icône basée sur le thème pour un affichage instantané
+      let icon = "Newspaper";
+      if (keywords.includes("guerre") || keywords.includes("conflit") || keywords.includes("armée")) icon = "Sword";
+      else if (keywords.includes("bourse") || keywords.includes("argent") || keywords.includes("économie")) icon = "TrendingUp";
+      else if (keywords.includes("ia") || keywords.includes("tech") || keywords.includes("robot")) icon = "Cpu";
+      else if (keywords.includes("sport") || keywords.includes("foot")) icon = "Trophy";
+      else if (keywords.includes("santé") || keywords.includes("médecin")) icon = "Stethoscope";
+      else if (keywords.includes("politique") || keywords.includes("gouvernement")) icon = "Globe";
+      else if (keywords.includes("culture") || keywords.includes("art") || keywords.includes("musique")) icon = "Palette";
+      else if (keywords.includes("météo") || keywords.includes("soleil") || keywords.includes("pluie")) icon = "CloudSun";
+
       return {
         ...item,
         id: `art-${category}-${i}-${Date.now()}`,
