@@ -1,0 +1,7 @@
+{
+  "name": "L'Écho du Matin",
+  "description": "Le journal d'actualités IA par Atmani Bachir. La vérité à 6 heures du matin.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
