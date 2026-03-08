@@ -502,32 +502,43 @@ const App: React.FC = () => {
               </button>
               <span className="font-serif font-black italic text-lg md:text-xl hidden sm:block">L'Écho du Matin</span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
               <button 
                 onClick={() => setIsReadingMode(!isReadingMode)} 
-                className={`px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest transition-all ${isReadingMode ? 'bg-white text-black' : 'bg-zinc-100 text-zinc-600'}`}
+                className={`whitespace-nowrap px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest transition-all ${isReadingMode ? 'bg-white text-black' : 'bg-zinc-100 text-zinc-600'}`}
               >
                 {isReadingMode ? 'Normal' : 'Lecture'}
               </button>
               <button 
-                onClick={isRadioMode ? stopRadioMode : startRadioMode}
-                className={`px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest transition-all ${isRadioMode ? 'bg-red-600 text-white' : 'bg-zinc-900 text-white'}`}
+                onClick={() => copyToClipboard(`🗞️ L'ÉCHO DU MATIN\n\n${selected.title.toUpperCase()}\n\n${selected.content}\n\n✨ Par Atmani Bachir`)} 
+                className="whitespace-nowrap bg-zinc-900 text-white px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-lg"
               >
-                {isRadioMode ? 'STOP RADIO' : 'RADIO'}
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M18 2h-8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14h-8V4h8v12zM6 4H4v12c0 1.1.9 2 2 2h2v-2H6V4z"/></svg>
+                TIKTOK
               </button>
               <button 
                 onClick={() => handleShare(selected)} 
-                className="bg-black text-white px-4 md:px-6 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2"
+                className="whitespace-nowrap bg-zinc-100 text-zinc-900 px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 border border-zinc-200"
               >
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z"></path></svg>
-                {copied ? 'COPIÉ !' : 'PARTAGER'}
+                PARTAGER
               </button>
               <button 
-                onClick={() => copyToClipboard(`🗞️ L'ÉCHO DU MATIN\n\n${selected.title.toUpperCase()}\n\n${selected.content}\n\n✨ Par Atmani Bachir`)} 
-                className="bg-zinc-100 text-zinc-900 px-4 md:px-6 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 border border-zinc-200"
+                onClick={() => copyToClipboard(selected.content)} 
+                className="whitespace-nowrap bg-zinc-100 text-zinc-900 px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 border border-zinc-200"
               >
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z"></path><path d="M5 5a2 2 0 012-2h6a2 2 0 012 2v2H7a4 4 0 00-4 4v6H5V5z"></path></svg>
-                TIKTOK / SOCIAL
+                COPIER
+              </button>
+              <button 
+                onClick={() => {
+                  const imageUrl = CATEGORY_IMAGES[selected.category] || CATEGORY_IMAGES[Category.UNES];
+                  window.open(imageUrl, '_blank');
+                }} 
+                className="whitespace-nowrap bg-zinc-100 text-zinc-900 px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 border border-zinc-200"
+              >
+                <Download className="w-3 h-3" />
+                IMAGE
               </button>
             </div>
           </div>
