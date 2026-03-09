@@ -565,7 +565,13 @@ const App: React.FC = () => {
               )}
               onClick={() => setIsReadingMode(!isReadingMode)}
             >
-              <ReactMarkdown>{selected.content}</ReactMarkdown>
+              <ReactMarkdown 
+                components={{
+                  p: ({children}) => <p className="mb-12 last:mb-0 p-6 bg-zinc-50/50 rounded-2xl border border-zinc-100 shadow-sm">{children}</p>
+                }}
+              >
+                {selected.content}
+              </ReactMarkdown>
             </div>
 
             {selected.strategicAdvice && !isReadingMode && (
