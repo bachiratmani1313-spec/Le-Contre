@@ -54,12 +54,12 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
     MISSION : Génère 3 articles complets pour la catégorie : ${category}.
     LANGUE : ${lang}.
 
-    CONSIGNE DE QUALITÉ : 
-    - Chaque article doit faire environ 250 mots (concis et percutant).
-    - Utilise Google Search pour des faits réels de moins de 24h.
-    - Si pas d'actualité, crée du contenu 'MAGAZINE' (BD, Fable, Réflexion IA).
+    CONSIGNE DE RÉDACTION (FORMAT TIKTOK) : 
+    - L'article doit être composé de 4 à 5 paragraphes distincts.
+    - CHAQUE paragraphe doit faire environ 250 caractères (très court et punchy).
+    - Chaque paragraphe doit pouvoir être lu indépendamment comme une "slide" ou une capture d'écran.
+    - Utilise un ton journalistique mais moderne.
     - NE JAMAIS INVENTER de faits.
-    - Sois rapide et direct dans ton analyse.
   `;
 
   try {
