@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type, Modality, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { Category, NewsArticle, Language } from "../types";
 
 /**
@@ -25,7 +25,6 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
       return await fn();
     } catch (error: any) {
       lastError = error;
-      // Si c'est une erreur 503 (High Demand) ou 429 (Rate Limit), on attend et on réessaie
       const isRetryable = error?.message?.includes("503") || 
                           error?.message?.includes("high demand") || 
                           error?.message?.includes("429") ||
@@ -33,7 +32,6 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
       
       if (isRetryable && i < maxRetries - 1) {
         const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-        console.warn(`Gemini occupé (503/429). Nouvel essai dans ${Math.round(delay)}ms...`);
         await sleep(delay);
         continue;
       }
@@ -59,25 +57,33 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
     - CHAQUE paragraphe doit faire environ 250 caractères (très court et punchy).
     - Chaque paragraphe doit pouvoir être lu indépendamment comme une "slide" ou une capture d'écran.
     - Utilise un ton journalistique mais moderne.
-    - NE JAMAIS INVENTER de faits.
+    - VÉRITÉ ABSOLUE : La fausse information n'est pas nécessaire. NE JAMAIS INVENTER de faits.
+    - Vérifie chaque information via Google Search. Si un fait est incertain, ne l'inclus pas.
   `;
 
   try {
     const response = await withRetry(() => ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-pro-preview",
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
+        safetySettings: [
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_NONE }
+        ],
         responseSchema: {
           type: Type.ARRAY,
           items: {
             type: Type.OBJECT,
             properties: {
-              type: { type: Type.STRING },
+              type: { type: Type.STRING, description: "FACTUAL ou MAGAZINE" },
               title: { type: Type.STRING },
               summary: { type: Type.STRING },
-              content: { type: Type.STRING },
+              content: { type: Type.STRING, description: "L'article découpé en paragraphes de 250 caractères" },
               location: { type: Type.STRING },
               timestamp: { type: Type.STRING },
               truthContent: { type: Type.STRING },
@@ -100,23 +106,18 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
     }));
 
     const text = response.text;
-    if (!text) return [];
+    if (!text) throw new Error("Le modèle n'a renvoyé aucun texte.");
     
-    const data = JSON.parse(text.trim());
+    let data = JSON.parse(text.trim());
+    if (!Array.isArray(data) || data.length === 0) throw new Error("Aucune actualité trouvée.");
+
     return data.map((item: any, i: number) => {
       const keywords = `${item.location} ${item.title} ${category}`.toLowerCase();
-      
-      // Sélection de l'icône basée sur le thème pour un affichage instantané
       let icon = "Newspaper";
-      if (keywords.includes("guerre") || keywords.includes("conflit") || keywords.includes("armée")) icon = "Sword";
-      else if (keywords.includes("bourse") || keywords.includes("argent") || keywords.includes("économie")) icon = "TrendingUp";
-      else if (keywords.includes("ia") || keywords.includes("tech") || keywords.includes("robot")) icon = "Cpu";
-      else if (keywords.includes("sport") || keywords.includes("foot")) icon = "Trophy";
-      else if (keywords.includes("santé") || keywords.includes("médecin")) icon = "Stethoscope";
-      else if (keywords.includes("politique") || keywords.includes("gouvernement")) icon = "Globe";
-      else if (keywords.includes("culture") || keywords.includes("art") || keywords.includes("musique")) icon = "Palette";
-      else if (keywords.includes("météo") || keywords.includes("soleil") || keywords.includes("pluie")) icon = "CloudSun";
-
+      if (keywords.includes("guerre") || keywords.includes("conflit")) icon = "Sword";
+      else if (keywords.includes("bourse") || keywords.includes("argent")) icon = "TrendingUp";
+      else if (keywords.includes("ia") || keywords.includes("tech")) icon = "Cpu";
+      
       return {
         ...item,
         id: `art-${category}-${i}-${Date.now()}`,
@@ -126,9 +127,8 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
         sources: []
       };
     });
-  } catch (error) {
-    console.error("Erreur Gemini:", error);
-    return [];
+  } catch (error: any) {
+    throw error;
   }
 };
 
@@ -142,7 +142,7 @@ export const speakArticle = async (text: string, lang: Language): Promise<Uint8A
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: { 
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: lang === Language.AR ? 'Zephyr' : 'Kore' } } 
+          voiceConfig: { voiceName: lang === Language.AR ? 'Zephyr' : 'Kore' } 
         }
       }
     }));
@@ -172,13 +172,9 @@ export function createWavBlob(data: Uint8Array): Blob {
   const dataSize = data.length;
   const buffer = new ArrayBuffer(44 + dataSize);
   const view = new DataView(buffer);
-
   const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
+    for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
   };
-
   writeString(0, 'RIFF');
   view.setUint32(4, 36 + dataSize, true);
   writeString(8, 'WAVE');
@@ -192,9 +188,7 @@ export function createWavBlob(data: Uint8Array): Blob {
   view.setUint16(34, bitsPerSample, true);
   writeString(36, 'data');
   view.setUint32(40, dataSize, true);
-
   const dataInt8 = new Uint8Array(buffer, 44);
   dataInt8.set(data);
-
   return new Blob([buffer], { type: 'audio/wav' });
 }
