@@ -25,6 +25,7 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
       return await fn();
     } catch (error: any) {
       lastError = error;
+      // Si c'est une erreur 503 (High Demand) ou 429 (Rate Limit), on attend et on réessaie
       const isRetryable = error?.message?.includes("503") || 
                           error?.message?.includes("high demand") || 
                           error?.message?.includes("429") ||
@@ -32,6 +33,7 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
       
       if (isRetryable && i < maxRetries - 1) {
         const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+        console.warn(`Gemini occupé (503/429). Nouvel essai dans ${Math.round(delay)}ms...`);
         await sleep(delay);
         continue;
       }
@@ -52,11 +54,9 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
     MISSION : Génère 3 articles complets pour la catégorie : ${category}.
     LANGUE : ${lang}.
 
-    CONSIGNE DE RÉDACTION (FORMAT TIKTOK) : 
-    - L'article doit être composé de 4 à 5 paragraphes distincts.
-    - CHAQUE paragraphe doit faire environ 250 caractères (très court et punchy).
-    - Chaque paragraphe doit pouvoir être lu indépendamment comme une "slide" ou une capture d'écran.
-    - Utilise un ton journalistique mais moderne.
+    CONSIGNE DE QUALITÉ : 
+    - Chaque article doit être complet, détaillé et faire environ 300 à 400 mots.
+    - Utilise un ton journalistique sérieux, élégant et analytique.
     - VÉRITÉ ABSOLUE : La fausse information n'est pas nécessaire. NE JAMAIS INVENTER de faits.
     - Vérifie chaque information via Google Search. Si un fait est incertain, ne l'inclus pas.
   `;
@@ -108,16 +108,32 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
     const text = response.text;
     if (!text) throw new Error("Le modèle n'a renvoyé aucun texte.");
     
-    let data = JSON.parse(text.trim());
-    if (!Array.isArray(data) || data.length === 0) throw new Error("Aucune actualité trouvée.");
+    let data;
+    try {
+      data = JSON.parse(text.trim());
+    } catch (e) {
+      console.error("Erreur de parsing JSON:", text);
+      throw new Error("Erreur de formatage des données reçues.");
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error("Aucune actualité trouvée pour le moment.");
+    }
 
     return data.map((item: any, i: number) => {
       const keywords = `${item.location} ${item.title} ${category}`.toLowerCase();
-      let icon = "Newspaper";
-      if (keywords.includes("guerre") || keywords.includes("conflit")) icon = "Sword";
-      else if (keywords.includes("bourse") || keywords.includes("argent")) icon = "TrendingUp";
-      else if (keywords.includes("ia") || keywords.includes("tech")) icon = "Cpu";
       
+      // Sélection de l'icône basée sur le thème pour un affichage instantané
+      let icon = "Newspaper";
+      if (keywords.includes("guerre") || keywords.includes("conflit") || keywords.includes("armée")) icon = "Sword";
+      else if (keywords.includes("bourse") || keywords.includes("argent") || keywords.includes("économie")) icon = "TrendingUp";
+      else if (keywords.includes("ia") || keywords.includes("tech") || keywords.includes("robot")) icon = "Cpu";
+      else if (keywords.includes("sport") || keywords.includes("foot")) icon = "Trophy";
+      else if (keywords.includes("santé") || keywords.includes("médecin")) icon = "Stethoscope";
+      else if (keywords.includes("politique") || keywords.includes("gouvernement")) icon = "Globe";
+      else if (keywords.includes("culture") || keywords.includes("art") || keywords.includes("musique")) icon = "Palette";
+      else if (keywords.includes("météo") || keywords.includes("soleil") || keywords.includes("pluie")) icon = "CloudSun";
+
       return {
         ...item,
         id: `art-${category}-${i}-${Date.now()}`,
@@ -128,6 +144,7 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
       };
     });
   } catch (error: any) {
+    console.error("Erreur Gemini:", error);
     throw error;
   }
 };
@@ -142,7 +159,7 @@ export const speakArticle = async (text: string, lang: Language): Promise<Uint8A
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: { 
-          voiceConfig: { voiceName: lang === Language.AR ? 'Zephyr' : 'Kore' } 
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: lang === Language.AR ? 'Zephyr' : 'Kore' } } 
         }
       }
     }));
@@ -172,9 +189,13 @@ export function createWavBlob(data: Uint8Array): Blob {
   const dataSize = data.length;
   const buffer = new ArrayBuffer(44 + dataSize);
   const view = new DataView(buffer);
+
   const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
   };
+
   writeString(0, 'RIFF');
   view.setUint32(4, 36 + dataSize, true);
   writeString(8, 'WAVE');
@@ -188,7 +209,9 @@ export function createWavBlob(data: Uint8Array): Blob {
   view.setUint16(34, bitsPerSample, true);
   writeString(36, 'data');
   view.setUint32(40, dataSize, true);
+
   const dataInt8 = new Uint8Array(buffer, 44);
   dataInt8.set(data);
+
   return new Blob([buffer], { type: 'audio/wav' });
 }
