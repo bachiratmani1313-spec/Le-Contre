@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Category, NewsArticle, Language } from './types';
 import { fetchNews, speakArticle, decodeAudio, createWavBlob } from './services/geminiService';
 import ReactMarkdown from 'react-markdown';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, 
   Pause, 
@@ -21,9 +21,11 @@ import {
   Palette,
   CloudSun,
   Newspaper,
-  LayoutGrid
+  LayoutGrid,
+  CheckCircle2
 } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
+import { clsx } from 'clsx';
+import type { ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 function cn(...inputs: ClassValue[]) {
@@ -117,7 +119,7 @@ const App: React.FC = () => {
   };
 
   const handleShare = async (article: NewsArticle) => {
-    const shareText = `${article.title}\n\n${article.content}\n\n— L'Écho du Matin par Atmani Bachir`;
+    const shareText = `🗞️ L'ÉCHO DU MATIN\n\n${article.title.toUpperCase()}\n\n${article.content}\n\n✨ Par Atmani Bachir`;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -126,7 +128,10 @@ const App: React.FC = () => {
           url: window.location.href
         });
       } catch (err) {
-        console.error("Erreur de partage:", err);
+        if ((err as Error).name !== 'AbortError') {
+          console.error("Erreur de partage:", err);
+          copyToClipboard(shareText);
+        }
       }
     } else {
       copyToClipboard(shareText);
@@ -134,10 +139,39 @@ const App: React.FC = () => {
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+    const performCopy = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(performCopy)
+        .catch((err) => {
+          console.error("Clipboard error:", err);
+          fallbackCopy(text);
+        });
+    } else {
+      fallbackCopy(text);
+    }
+
+    function fallbackCopy(text: string) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) performCopy();
+      } catch (err) {
+        console.error("Fallback copy failed:", err);
+      }
+    }
   };
 
   const handleDownloadAudio = async (article: NewsArticle) => {
@@ -511,10 +545,17 @@ const App: React.FC = () => {
               </button>
               <button 
                 onClick={() => copyToClipboard(`🗞️ L'ÉCHO DU MATIN\n\n${selected.title.toUpperCase()}\n\n${selected.content}\n\n✨ Par Atmani Bachir`)} 
-                className="whitespace-nowrap bg-zinc-900 text-white px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-lg"
+                className={cn(
+                  "whitespace-nowrap px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all",
+                  copied ? "bg-green-600 text-white" : "bg-zinc-900 text-white"
+                )}
               >
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M18 2h-8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14h-8V4h8v12zM6 4H4v12c0 1.1.9 2 2 2h2v-2H6V4z"/></svg>
-                TIKTOK
+                {copied ? (
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                ) : (
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M18 2h-8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14h-8V4h8v12zM6 4H4v12c0 1.1.9 2 2 2h2v-2H6V4z"/></svg>
+                )}
+                {copied ? 'COPIÉ !' : 'TIKTOK'}
               </button>
               <button 
                 onClick={() => handleShare(selected)} 
@@ -524,11 +565,14 @@ const App: React.FC = () => {
                 PARTAGER
               </button>
               <button 
-                onClick={() => copyToClipboard(selected.content)} 
-                className="whitespace-nowrap bg-zinc-100 text-zinc-900 px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 border border-zinc-200"
+                onClick={() => copyToClipboard(`🗞️ L'ÉCHO DU MATIN\n\n${selected.title.toUpperCase()}\n\n${selected.content}\n\n✨ Par Atmani Bachir`)} 
+                className={cn(
+                  "whitespace-nowrap px-4 py-2 rounded-full font-black text-[9px] uppercase tracking-widest flex items-center gap-2 border transition-all",
+                  copied ? "bg-green-50 border-green-200 text-green-700" : "bg-zinc-100 text-zinc-900 border-zinc-200"
+                )}
               >
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z"></path><path d="M5 5a2 2 0 012-2h6a2 2 0 012 2v2H7a4 4 0 00-4 4v6H5V5z"></path></svg>
-                COPIER
+                {copied ? 'COPIÉ !' : 'COPIER'}
               </button>
               <button 
                 onClick={() => {
@@ -657,6 +701,21 @@ const App: React.FC = () => {
             >
               Quitter
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* TOAST NOTIFICATION */}
+      <AnimatePresence>
+        {copied && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] bg-green-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-widest"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Copié dans le presse-papiers
           </motion.div>
         )}
       </AnimatePresence>
