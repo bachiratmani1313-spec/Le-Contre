@@ -63,7 +63,7 @@ export const fetchNews = async (category: Category, lang: Language): Promise<New
 
   try {
     const response = await withRetry(() => ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
+      model: "gemini-flash-latest",
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
